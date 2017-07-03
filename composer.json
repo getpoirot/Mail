@@ -7,9 +7,15 @@
             , "email": "naderi.payam@gmail.com"
         }
     ]
+    , "require": {
+        "poirot/std": "dev-devel"
+    }
     , "autoload"  : {
         "psr-4": {
             "Poirot\\Mail\\": "src/"
         }
+        , "files": [
+            "_functions.php"
+        ]
     }
 }
