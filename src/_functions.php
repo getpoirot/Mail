@@ -130,6 +130,7 @@ namespace Poirot\Mail\Header
     }
 
     /**
+     * // TODO mb_encode_mimeheader
      * Encode String into standard header value word wrap
      *
      * @param string      $value
