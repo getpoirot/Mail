@@ -14,7 +14,7 @@ namespace Poirot\Mail\Address
      */
     function parseAddressFromString($str)
     {
-
+        // TODO Implement this
     }
 
     /**
@@ -24,17 +24,34 @@ namespace Poirot\Mail\Address
      *
      * @return string
      */
-    function sprintAddress(iMailAddress $address)
+    function sprintAddress(iMailAddress $address, $encode = false)
     {
-        $name = $address->getName();
+        $name  = $address->getName();
+        $email = $address->getEmail();
+
+        if (! empty($name) ) {
+            $name = sprintf('"%s"', $name);
+
+            (false == $encode) ?: $name = \Poirot\Mail\Header\encodeHeaderValue($name, null, 998);
+        }
+
+
+        if ( $encode && preg_match('/^(.+)@([^@]+)$/', $email, $matches) )
+        {
+            $localPart = $matches[1];
+            $hostname  = $matches[2];
+
+            if (extension_loaded('intl'))
+                $hostname = (idn_to_ascii($hostname) ?: $hostname);
+
+            $email = sprintf('%s@%s', $localPart, $hostname);
+        }
+
 
         if ($name === '' || $name === null )
-            return $this->getEmail();
+            return $email;
 
-
-        // TODO Encode Header
-
-        return sprintf('%s <%s>', $name, $address->getEmail());
+        return sprintf('%s <%s>', $name, $email);
     }
 
     /**
@@ -61,30 +78,104 @@ namespace Poirot\Mail\Address
 
 namespace Poirot\Mail\Message
 {
+    use Poirot\Http\Interfaces\iHeader;
     use Poirot\Mail\Interfaces\iMailMessage;
+
 
     /**
      * Is Message Valid?
      *
-     * - we must have from address as header
-     *
      * @param iMailMessage $message
+     *
+     * @return bool
      */
     function isValid(iMailMessage $message)
     {
-        // TODO Implement this
+        # we must have from address as header
+        #
+        $flag = $message->headers()->has('from');
+
+
+        return $flag;
     }
 
     /**
+     * // TODO encode header values
+     *
      * Print Mail Message as String
      *
      * @param iMailMessage $message
      *
      * @return string
      */
-    function sprintMessage(iMailMessage $message)
+    function sprintMessage(iMailMessage $message, $encode = false)
     {
-        // TODO Implement this
+        # Render Headers
+        #
+        /** @var iHeader $hs */
+        $rendered = []; $headers = '';
+        foreach ($message->headers() as $hs)
+        {
+            $label = $hs->getLabel();
+            if ( isset($rendered[strtolower($label)]) )
+                // this value is render and combined!
+                continue;
+
+            /** @var iHeader $h */
+            foreach ($message->headers()->get($label) as $h)
+                $value[] = $h->renderValueLine();
+
+            // glue them back
+            $value    = implode(',' . "\r\n", $value);
+            $headers .= $label.': '. $value;
+
+            $rendered[$label] = true;
+        }
+
+        $headers.="\r\n";
+
+
+        # Render Message Body
+        #
+        return $headers
+            . $message->getBody();
+    }
+
+    /**
+     * Parse Mail Message From Raw String
+     *
+     * @param $messageStr
+     *
+     * @return string
+     */
+    function parseMessageFromString($messageStr)
+    {
+        // TODO implement this
+    }
+
+    /**
+     * Create Message-ID
+     *
+     * @return string
+     */
+    function createMessageId()
+    {
+        $time = time();
+
+        if ( isset($_SERVER['REMOTE_ADDR']) )
+            $user = $_SERVER['REMOTE_ADDR'];
+        else
+            $user = getmypid();
+
+
+        $rand = mt_rand();
+
+        if ( isset($_SERVER["SERVER_NAME"]) )
+            $hostName = $_SERVER["SERVER_NAME"];
+        else
+            $hostName = php_uname('n');
+
+        return sha1($time . $user . $rand) . '@' . $hostName;
     }
 }
 
@@ -93,6 +184,73 @@ namespace Poirot\Mail\Header
 {
     // Most codes here are Clone of Poirot\Http\Header\$
     use Poirot\Std\Type\StdString;
+
+
+    /**
+     * // TODO headers with same name?!!
+     * Parse Headers
+     *
+     * @param string $content String content include headers
+     * @param null   $offset  Read until headers end (double return afterward) and set
+     *                        offset position here
+     *
+     * @return array [ [Content-Type] =>  application/javascript, .. ]
+     * @throws \Exception
+     */
+    function parseHeadersFromMessage($content, &$offset = null, $EOL = "\r\n")
+    {
+        $content = (string) $content;
+
+        $heads = []; $offset = 0; $headStarting = false;
+        while ( preg_match("/.*[$EOL]?/", $content, $matchLines, null, $offset) )
+        {
+            $line = $matchLines[0];
+            $offset += strlen($line);
+
+            $line = trim($line, $EOL);
+
+            if ( empty($line) ) {
+                // When headers start parse headers until one break line reached
+                if (! $headStarting )
+                    continue; // lines not started; trim begining empty lines
+
+                break;
+            }
+
+            if (preg_match('/^[\x21-\x39\x3B-\x7E]+:.*$/', $line))
+            {
+                // Start Header
+                $headStarting = true;
+                list($label, $value) = splitLabelValue($line);
+                $heads[$label] = $value;
+
+                continue; // try next line
+
+            } elseif (! $headStarting )
+                throw new \RuntimeException(sprintf(
+                    '(%s) is malformed in headers.'
+                    , $line
+                ));
+
+
+            // continuation: append to current line
+            // recover the whitespace that break the line (unfolding, rfc2822#section-2.2.3)
+            if (preg_match('/^\s+.*$/', $line))
+                $heads[$label] .= ' ' . trim($line);
+            else
+                // Line does not match header format!
+                throw new \RuntimeException(sprintf(
+                    'Line "%s" does not match header format!',
+                    $line
+                ));
+        }
+
+
+        if ( empty($heads) )
+            throw new \InvalidArgumentException('Error Parsing Request Message.');
+
+        return $heads;
+    }
 
     /**
      * Parse Header line
@@ -226,19 +384,6 @@ namespace Poirot\Mail\Header
         return StdString::of($val)->isPrintable() ? 'ASCII' : 'UTF-8';
     }
 
-    /**
-     * Encode Mime
-     *
-     * @param $value
-     * @param $encoding
-     * @param int $lineLength
-     *
-     * @return string
-     */
-    function encodeMimeValue($value, $encoding, $lineLength = 998)
-    {
-        // TODO
-    }
 
     /**
      * Decodes a MIME header field

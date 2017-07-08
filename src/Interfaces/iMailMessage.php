@@ -1,14 +1,40 @@
 <?php
 namespace Poirot\Mail\Interfaces;
 
+use Poirot\Stream\Interfaces\iStreamable;
+
 
 interface iMailMessage
 {
-    function setHeaders();
+    /**
+     * Set Mail Headers
+     *
+     * @param iHeaders $headers
+     *
+     * @return $this
+     */
+    function setHeaders(iHeaders $headers);
 
+    /**
+     * Headers
+     *
+     * @return iHeaders
+     */
     function headers();
 
-    function setBody();
+    /**
+     * Set Message Body Content
+     *
+     * @param string|iStreamable $body
+     *
+     * @return $this
+     */
+    function setBody($body);
 
+    /**
+     * Message Body
+     *
+     * @return string|iStreamable|null
+     */
     function getBody();
 }

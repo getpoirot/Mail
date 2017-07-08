@@ -9,6 +9,8 @@
     ]
     , "require": {
         "poirot/std": "dev-devel"
+        , "poirot/api-client": "dev-devel"
+        , "poirot/connection": "dev-devel"
     }
     , "autoload"  : {
         "psr-4": {
