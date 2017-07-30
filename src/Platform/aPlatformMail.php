@@ -3,7 +3,15 @@ namespace Poirot\Mail\Platform;
 
 use Poirot\ApiClient\aPlatform;
 
-
+/**
+ * Use non-standard headers for broken MTAs.
+ *
+ * The default header EOL for headers is \r\n.  This causes problems
+ * on some broken MTAs.  Setting this to TRUE will cause Elgg to use
+ * \n, which will fix some problems sending email on broken MTAs.
+ *
+ *
+ */
 class aPlatformMail
     extends aPlatform
 {
